@@ -1,0 +1,174 @@
+--1. Bagaimana other_service berpengaruh pada avg_rating restaurant?
+---database posisi di rating
+select* from rating_final
+---diubah menjadi integer karena awalnya masih varchar supaya bisa dihitung
+select placeID,TRY_CAST(rating as decimal(5,2)) as rating, TRY_CAST(food_rating as decimal(5,2)) as food_rating, TRY_CAST(service_rating as decimal(5,2)) as service_rating
+into #rata
+from rating_final
+
+select *, (rating+food_rating+service_rating)/3 as avg_rating
+into #rata2
+from #rata
+order by avg_rating desc
+
+select* from #rata2
+select* from Restaurant.dbo.geoplaces2
+
+select #rata2.placeID,#rata2.rating,#rata2.food_rating,#rata2.service_rating,#rata2.avg_rating,geoplaces2.name,geoplaces2.other_services
+into Q1
+from #rata2
+left join Restaurant.dbo.geoplaces2
+on #rata2.placeID=geoplaces2.ID
+order by avg_rating desc
+
+select* from Q1
+order by rating desc
+
+--2. Apakah status pekerjaan(activity) mereka mempengaruhi hari pengunjungan ke restaurant?
+---database posisi di rating
+select* from rating_final
+
+select userID,placeID,TRY_CAST(rating as decimal(5,2)) as rating, TRY_CAST(food_rating as decimal(5,2)) as food_rating, TRY_CAST(service_rating as decimal(5,2)) as service_rating
+into #new1
+from rating_final
+
+select *, (rating+food_rating+service_rating)/3 as avg_rating
+into table_rating
+from #new1
+
+select* from table_rating
+select* from consumer.dbo.userprofile
+
+select distinct days from Restaurant.dbo.chefmozhours4
+
+select placeID,days,
+CASE
+	WHEN days='Sat;' then 'Weekend'
+	WHEN days='Sun;' then 'Weekend'
+	else 'Weekday'
+end as keterangan
+into table_hari
+from Restaurant.dbo.chefmozhours4
+
+select table_rating.*,userprofile.birth_year,userprofile.activity
+into #temp1
+from table_rating
+left join consumer.dbo.userprofile
+on table_rating.userID=userprofile.userID
+
+select* from #temp1
+
+select #temp1.userID,#temp1.placeID,#temp1.avg_rating,#temp1.activity,table_hari.keterangan
+into Q2
+from #temp1
+left join Restaurant.dbo.table_hari
+on #temp1.placeID=table_hari.placeID
+
+select* from Q2
+
+--3. Makanan paling laku di tiap kota
+--- database posisinya di restaurant
+select* from chefmozcuisine
+select* from geoplaces2
+
+select chefmozcuisine.*,geoplaces2.name,geoplaces2.city
+into Q3
+from chefmozcuisine
+left join geoplaces2
+on chefmozcuisine.placeID=geoplaces2.ID
+
+select* from Q3
+where name is null
+---dibuat tabel lagi aja karena banyak yang null
+--- interpretasinya tulis karena banyak yang tidak ada nama restaurant-nya maka tidak bisa diambil insightnya
+
+--4. Bagaimana rating/rasa makanan di restaurant tiap kota?
+--- database posisi di rating
+select* from Restaurant.dbo.geoplaces2
+select* from rating_final
+
+select userID,geoplaces2.city,food_rating
+into Q4
+from rating_final
+left join Restaurant.dbo.geoplaces2
+on rating_final.placeID=geoplaces2.ID
+
+select* from Q4
+
+--5. Jenis payment yang digunakan tiap generasi pelanggan
+--- database posisi di consumer
+select userID,birth_year
+into #table_gen
+from userprofile
+
+select*,
+CASE
+	when birth_year>=1930 and birth_year<1965 then 'Baby Boomers'
+	when birth_year>=1965 and birth_year<1980 then 'Gen X'
+	else 'Gen Y'
+end as keterangan
+into #gen_ket
+from #table_gen
+
+select userpayment.*,#gen_ket.keterangan
+into Q5
+from userpayment
+left join #gen_ket
+on userpayment.userID=#gen_ket.userID
+
+select * from Q5
+
+--6. Bagaimana service_rating pada ambience tiap restaurant?
+--- database posisi rating
+select * from Restaurant.dbo.geoplaces2
+select * from rating_final
+
+select geoplaces2.name, service_rating,geoplaces2.Rambience as ambience
+into Q6
+from rating_final
+left join Restaurant.dbo.geoplaces2
+on rating_final.placeID=geoplaces2.ID
+
+select* from Q6
+
+--7. Rating setiap restaurant dan deskripsinya
+--- database posisi di Restaurant
+select placeID,TRY_CAST(rating as decimal(5,2)) as rating, TRY_CAST(food_rating as decimal(5,2)) as food_rating, TRY_CAST(service_rating as decimal(5,2)) as service_rating
+into #rata
+from rating_final
+
+select placeID,(rating+food_rating+service_rating)/3 as rata_rating
+into #rataa
+from #rata
+order by rata_rating desc
+
+select* from #rataa
+--list kolom yang mau dibikin ke tabel dari klik kanan kemudian SELECT TO
+SELECT [ID]
+	  ,[name]
+      ,[city]
+      ,[alcohol]
+      ,[smoking_area]
+      ,[dress_code]
+      ,[price]
+      ,[Rambience] as ambience
+      ,[franchise]
+      ,[area]
+into #desc
+FROM [dbo].[geoplaces2]
+
+select placeID, avg(rata_rating) as avg_rating
+into #next
+from #rataa
+group by placeID
+
+select #next.*,#desc.* 
+into Q7
+from #next
+inner join #desc
+on #next.placeID=#desc.ID
+
+alter table Q7
+drop column ID
+
+select* from Q7
